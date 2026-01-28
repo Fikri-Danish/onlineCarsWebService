@@ -19,29 +19,29 @@ const dbConfig = {
 // intialize Express app
 const app = express();
 
-// const cors = require("cors");
+const cors = require("cors");
 
-// const allowedOrigins = [
-//   "http://localhost:3000",
-//   "https://onlinecardappwebservice-2v9d.onrender.com/allcards",
-// ];
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://onlinecarswebservice.onrender.com/allcars",
+];
 
-// app.use(
-//   cors({
-//     origin: function (origin, callback) {
-//       // allow requests with no origin (Postman/server-to-server)
-//       if (!origin) return callback(null, true);
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (Postman/server-to-server)
+      if (!origin) return callback(null, true);
 
-//       if (allowedOrigins.includes(origin)) {
-//         return callback(null, true);
-//       }
-//       return callback(new Error("Not allowed by CORS"));
-//     },
-//     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//     allowedHeaders: ["Content-Type", "Authorization"],
-//     credentials: false,
-//   })
-// );
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false,
+  })
+);
 
 // helps app to read JSON
 app.use(express.json());

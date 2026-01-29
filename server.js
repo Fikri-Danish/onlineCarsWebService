@@ -67,10 +67,10 @@ app.get('/allcars', async (req, res) => {
 
 // Example Route: Create a new car
 app.post('/addcar', async (req, res) => {
-    const { car_name, car_description, brand, price, year, colour, car_image } = req.body;
+    const { car_name, car_description, brand, price, year, stocks, car_image } = req.body;
     try {
         let connection = await mysql.createConnection(dbConfig);
-        await connection.execute('INSERT INTO cars (car_name, car_description, brand, price, year, colour, car_image) VALUES (?, ?, ?, ?, ?, ?, ?)', [car_name, car_description, brand, price, year, colour, car_image]);
+        await connection.execute('INSERT INTO cars (car_name, car_description, brand, price, year, stocks, car_image) VALUES (?, ?, ?, ?, ?, ?, ?)', [car_name, car_description, brand, price, year, stocks, car_image]);
         res.status(201).json({ message: 'Car '+car_name+' added successfully' });
     } catch (err) {
         console.error(err);
@@ -81,9 +81,9 @@ app.post('/addcar', async (req, res) => {
 // Edit (update) a car
 app.put('/editcar/:id', async (req, res) => {
     const { id } = req.params;
-    const { car_name, car_description, brand, price, year, colour, car_image } = req.body;
+    const { car_name, car_description, brand, price, year, stocks, car_image } = req.body;
 
-    if (car_name === undefined && car_description === undefined, brand === undefined && price === undefined && year === undefined && colour === undefined && car_image) {
+    if (car_name === undefined && car_description === undefined, brand === undefined && price === undefined && year === undefined && stocks === undefined && car_image) {
         return res.status(400).json({ message: 'Nothing to update' });
     }
 
@@ -96,10 +96,10 @@ app.put('/editcar/:id', async (req, res) => {
                  brand = COALESCE(?, brand),
                  price = COALESCE(?, price),
                  year = COALESCE(?, year),
-                 colour = COALESCE(?, colour),
+                 stocks = COALESCE(?, stocks),
                  car_image = COALESCE(?, car_image)
              WHERE id = ?`,
-            [car_name ?? null, car_description ?? null, brand ?? null, price ?? null, year ?? null, colour ?? null, car_image ?? null, id]
+            [car_name ?? null, car_description ?? null, brand ?? null, price ?? null, year ?? null, stocks ?? null, car_image ?? null, id]
         );
 
         if (result.affectedRows === 0) {

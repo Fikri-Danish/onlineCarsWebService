@@ -139,82 +139,167 @@ function requireCustomerOrAdmin(req, res, next) {
     next();
 }
 
-// Example Route: Get all cars (public or require auth based on your needs)
-app.get('/allcars', async (req, res) => {
+// Get all study spaces (public or require auth based on your needs)
+app.get('/allspaces', async (req, res) => {
     try {
         let connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute('SELECT * FROM defaultdb.cars');
+        const [rows] = await connection.execute('SELECT * FROM defaultdb.study_spaces');
         await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Server error for allcars' });
+        res.status(500).json({ message: 'Server error for allspaces' });
     }
 });
 
-// Create a new car - Admin only
-app.post('/addcar', requireAuth, requireAdmin, async (req, res) => {
-    const { car_name, car_description, brand, price, year, stocks, car_image } = req.body;
+// Create a new study space - Admin only
+app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
+    const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time } = req.body;
     try {
         let connection = await mysql.createConnection(dbConfig);
         await connection.execute(
-            'INSERT INTO cars (car_name, car_description, brand, price, year, stocks, car_image) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-            [car_name, car_description, brand, price, year, stocks, car_image]
+            'INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+            [space_name, location, capacity, zone_type, is_available ?? true, booked_by ?? null, booking_time ?? null]
         );
         await connection.end();
-        res.status(201).json({ message: 'Car '+car_name+' added successfully' });
+        res.status(201).json({ message: 'Study space '+space_name+' added successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Server error - could not add car '+car_name});
+        res.status(500).json({ message: 'Server error - could not add study space '+space_name});
     }
 });
 
-// Edit (update) a car - Admin only
-app.put('/editcar/:id', requireAuth, requireAdmin, async (req, res) => {
+// Edit (update) a study space - Admin only
+app.put('/editspace/:id', requireAuth, requireAdmin, async (req, res) => {
     const { id } = req.params;
-    const { car_name, car_description, brand, price, year, stocks, car_image } = req.body;
+    const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time } = req.body;
 
-    if (car_name === undefined && car_description === undefined && brand === undefined && price === undefined && year === undefined && stocks === undefined && car_image === undefined) {
+    if (space_name === undefined && location === undefined && capacity === undefined && zone_type === undefined && is_available === undefined && booked_by === undefined && booking_time === undefined) {
         return res.status(400).json({ message: 'Nothing to update' });
     }
 
     try {
         let connection = await mysql.createConnection(dbConfig);
         const [result] = await connection.execute(
-            `UPDATE defaultdb.cars 
-             SET car_name = COALESCE(?, car_name),
-                 car_description = COALESCE(?, car_description),
-                 brand = COALESCE(?, brand),
-                 price = COALESCE(?, price),
-                 year = COALESCE(?, year),
-                 stocks = COALESCE(?, stocks),
-                 car_image = COALESCE(?, car_image)
-             WHERE id = ?`,
-            [car_name ?? null, car_description ?? null, brand ?? null, price ?? null, year ?? null, stocks ?? null, car_image ?? null, id]
+            `UPDATE defaultdb.study_spaces 
+             SET space_name = COALESCE(?, space_name),
+                 location = COALESCE(?, location),
+                 capacity = COALESCE(?, capacity),
+                 zone_type = COALESCE(?, zone_type),
+                 is_available = COALESCE(?, is_available),
+                 booked_by = ?,
+                 booking_time = ?
+             WHERE space_id = ?`,
+            [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, id]
         );
         await connection.end();
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Car not found' });
+            return res.status(404).json({ message: 'Study space not found' });
         }
 
-        res.json({ message: 'Car id ' + id + ' updated successfully' });
+        res.json({ message: 'Study space id ' + id + ' updated successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Server error - could not update car id ' + id });
+        res.status(500).json({ message: 'Server error - could not update study space id ' + id });
     }
 });
 
-// Delete a car - Admin only
-app.delete('/deletecar/:id', requireAuth, requireAdmin, async (req, res) => {
+// Delete a study space - Admin only
+app.delete('/deletespace/:id', requireAuth, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
         let connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute('DELETE FROM defaultdb.cars WHERE id = ?', [id]);
+        const [rows] = await connection.execute('DELETE FROM defaultdb.study_spaces WHERE space_id = ?', [id]);
         await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Server error for deletecar' });
+        res.status(500).json({ message: 'Server error for deletespace' });
+    }
+});
+
+// Book a study space - Customer or Admin
+app.post('/bookspace/:id', requireAuth, requireCustomerOrAdmin, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        let connection = await mysql.createConnection(dbConfig);
+        
+        // Check if space exists and is available
+        const [spaces] = await connection.execute(
+            'SELECT * FROM defaultdb.study_spaces WHERE space_id = ?',
+            [id]
+        );
+        
+        if (spaces.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Study space not found' });
+        }
+        
+        if (!spaces[0].is_available) {
+            await connection.end();
+            return res.status(400).json({ message: 'Study space is not available' });
+        }
+        
+        // Book the space
+        const [result] = await connection.execute(
+            `UPDATE defaultdb.study_spaces 
+             SET is_available = false,
+                 booked_by = ?,
+                 booking_time = NOW()
+             WHERE space_id = ?`,
+            [req.user.userId, id]
+        );
+        
+        await connection.end();
+        
+        res.json({ message: 'Study space booked successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not book study space' });
+    }
+});
+
+// Release a study space booking - Customer (own bookings) or Admin (any booking)
+app.post('/releasespace/:id', requireAuth, requireCustomerOrAdmin, async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+        let connection = await mysql.createConnection(dbConfig);
+        
+        // Check if space exists
+        const [spaces] = await connection.execute(
+            'SELECT * FROM defaultdb.study_spaces WHERE space_id = ?',
+            [id]
+        );
+        
+        if (spaces.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Study space not found' });
+        }
+        
+        // Check if user has permission to release (admin or the one who booked it)
+        if (req.user.role !== 'admin' && spaces[0].booked_by !== req.user.userId) {
+            await connection.end();
+            return res.status(403).json({ message: 'You can only release your own bookings' });
+        }
+        
+        // Release the space
+        const [result] = await connection.execute(
+            `UPDATE defaultdb.study_spaces 
+             SET is_available = true,
+                 booked_by = NULL,
+                 booking_time = NULL
+             WHERE space_id = ?`,
+            [id]
+        );
+        
+        await connection.end();
+        
+        res.json({ message: 'Study space released successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error - could not release study space' });
     }
 });

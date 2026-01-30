@@ -42,7 +42,6 @@ app.use(
     })
 );
 
-// helps app to read JSON
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
@@ -53,7 +52,6 @@ app.listen(port, () => {
     console.log('Server running on port', port);
 });
 
-// Get all study spaces
 app.get('/allspaces', async (req, res) => {
     try {
         let connection = await mysql.createConnection(dbConfig);
@@ -66,7 +64,6 @@ app.get('/allspaces', async (req, res) => {
     }
 });
 
-// Create a new study space - ADMIN ONLY
 app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
     const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image } = req.body;
     try {
@@ -83,56 +80,73 @@ app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Edit (update) a study space - ADMIN ONLY
-app.put('/editspace/:id', requireAuth, requireStudentOrAdmin, async (req, res) => {
+app.put('/editspace/:id', requireAuth, async (req, res) => {
+
     const { id } = req.params;
-    const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image } = req.body;
+    const clean = (v) => (v === undefined ? null : v);
+    const {
+        space_name,
+        location,
+        capacity,
+        zone_type,
+        is_available,
+        booked_by,
+        booking_time,
+        space_image
+    } = req.body;
 
-    if (space_name === undefined && location === undefined && capacity === undefined && zone_type === undefined && is_available === undefined && booked_by === undefined && booking_time === undefined && space_image === undefined) {
-        return res.status(400).json({ message: 'Nothing to update' });
-    }
-
-    if (req.user.role === "student") {
-        const allowed = ["is_available", "booked_by", "booking_time"];
-        const sent = Object.keys(req.body);
-
-        const invalid = sent.some((key) => !allowed.includes(key));
-        if (invalid) {
-            return res.status(403).json({
-                message: "Students can only book or unbook spaces"
-            });
-        }
+    if (
+        space_name === undefined &&
+        location === undefined &&
+        capacity === undefined &&
+        zone_type === undefined &&
+        is_available === undefined &&
+        booked_by === undefined &&
+        booking_time === undefined &&
+        space_image === undefined
+    ) {
+        return res.status(400).json({ message: "Nothing to update" });
     }
 
     try {
-        let connection = await mysql.createConnection(dbConfig);
+
+        const connection = await mysql.createConnection(dbConfig);
         const [result] = await connection.execute(
             `UPDATE defaultdb.study_spaces 
-             SET space_name = COALESCE(?, space_name),
-                 location = COALESCE(?, location),
-                 capacity = COALESCE(?, capacity),
-                 zone_type = COALESCE(?, zone_type),
-                 is_available = COALESCE(?, is_available),
-                 booked_by = COALESCE(?, booked_by),
-                 booking_time = COALESCE(?, booking_time),
-                 space_image = COALESCE(?, space_image)
-             WHERE id = ?`,
-            [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, space_image ?? null, id]
+       SET space_name   = COALESCE(?, space_name),
+           location     = COALESCE(?, location),
+           capacity     = COALESCE(?, capacity),
+           zone_type    = COALESCE(?, zone_type),
+           is_available = COALESCE(?, is_available),
+           booked_by    = COALESCE(?, booked_by),
+           booking_time = COALESCE(?, booking_time),
+           space_image  = COALESCE(?, space_image)
+       WHERE id = ?`,
+            [
+                clean(space_name),
+                clean(location),
+                clean(capacity),
+                clean(zone_type),
+                clean(is_available),
+                clean(booked_by),
+                clean(booking_time),
+                clean(space_image),
+                id
+            ]
         );
         await connection.end();
-
         if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Study space not found' });
+            return res.status(404).json({ message: "Study space not found" });
         }
-
-        res.json({ message: 'Study space id ' + id + ' updated successfully' });
+        res.json({ message: `Study space id ${id} updated successfully` });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ message: 'Server error - could not update study space id ' + id });
+        res.status(500).json({
+            message: "Server error - could not update study space"
+        });
     }
 });
 
-// Delete a study space - ADMIN ONLY
 app.delete('/deletespace/:id', requireAuth, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
@@ -146,7 +160,6 @@ app.delete('/deletespace/:id', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Login endpoint - uses users table
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
@@ -168,7 +181,6 @@ app.post("/login", async (req, res) => {
 
         const user = rows[0];
 
-        // Plain text password comparison
         if (password !== user.password) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
@@ -216,7 +228,6 @@ function requireAuth(req, res, next) {
     }
 }
 
-// Middleware to require admin role
 function requireAdmin(req, res, next) {
     if (req.user.role !== 'admin') {
         return res.status(403).json({ error: "Access denied. Admin role required." });
@@ -224,7 +235,6 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-// Middleware to require student or admin role
 function requireStudentOrAdmin(req, res, next) {
     if (req.user.role !== 'student' && req.user.role !== 'admin') {
         return res.status(403).json({ error: "Access denied. Student or Admin role required." });

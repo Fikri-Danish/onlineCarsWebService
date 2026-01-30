@@ -103,7 +103,7 @@ app.put('/editspace/:id', async (req, res) => {
                  booked_by = COALESCE(?, booked_by),
                  booking_time = COALESCE(?, booking_time),
                  space_image = COALESCE(?, space_image)
-             WHERE space_id = ?`,
+             WHERE id = ?`,
             [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, space_image ?? null, id]
         );
 

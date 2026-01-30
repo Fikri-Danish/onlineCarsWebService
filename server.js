@@ -122,7 +122,7 @@ app.delete('/deletespace/:id', async (req, res) => {
     const { id } = req.params;
     try {
         let connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute('DELETE FROM defaultdb.study_spaces WHERE space_id = ?', [id]);
+        const [rows] = await connection.execute('DELETE FROM defaultdb.study_spaces WHERE id = ?', [id]);
         res.json(rows);
     } catch (err) {
         console.error(err);

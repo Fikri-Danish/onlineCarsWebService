@@ -45,7 +45,6 @@ app.use(
 // helps app to read JSON
 app.use(express.json());
 
-const DEMO_USER = { id: 1, username: "admin", password: "admin123" };
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 
 const jwt = require("jsonwebtoken");
@@ -59,6 +58,7 @@ app.get('/allspaces', async (req, res) => {
     try {
         let connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute('SELECT * FROM defaultdb.study_spaces');
+        await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);
@@ -75,6 +75,7 @@ app.post('/addspace', async (req, res) => {
             'INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', 
             [space_name, location, capacity, zone_type, is_available ?? true, booked_by ?? null, booking_time ?? null, space_image ?? null]
         );
+        await connection.end();
         res.status(201).json({ message: 'Study space ' + space_name + ' added successfully' });
     } catch (err) {
         console.error(err);
@@ -106,6 +107,7 @@ app.put('/editspace/:id', async (req, res) => {
              WHERE id = ?`,
             [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, space_image ?? null, id]
         );
+        await connection.end();
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Study space not found' });
@@ -123,6 +125,7 @@ app.delete('/deletespace/:id', async (req, res) => {
     try {
         let connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute('DELETE FROM defaultdb.study_spaces WHERE id = ?', [id]);
+        await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);
@@ -130,20 +133,56 @@ app.delete('/deletespace/:id', async (req, res) => {
     }
 });
 
-app.post("/login", (req, res) => {
+// Login endpoint - uses users table
+app.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
-    if (username !== DEMO_USER.username || password !== DEMO_USER.password) {
-        return res.status(401).json({ error: "Invalid" });
+    if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
     }
 
-    const token = jwt.sign(
-        { userId: DEMO_USER.id, username: DEMO_USER.username },
-        JWT_SECRET,
-        { expiresIn: "1h" }
-    );
+    try {
+        let connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute(
+            'SELECT userId, username, password, email, role FROM defaultdb.users WHERE username = ?',
+            [username]
+        );
+        await connection.end();
 
-    res.json({ token });
+        if (rows.length === 0) {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+
+        const user = rows[0];
+
+        // Plain text password comparison
+        if (password !== user.password) {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+
+        const token = jwt.sign(
+            { 
+                userId: user.userId, 
+                username: user.username,
+                role: user.role 
+            },
+            JWT_SECRET,
+            { expiresIn: "1h" }
+        );
+
+        res.json({ 
+            token,
+            user: {
+                userId: user.userId,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error during login" });
+    }
 });
 
 function requireAuth(req, res, next) {
@@ -162,4 +201,20 @@ function requireAuth(req, res, next) {
     } catch {
         return res.status(401).json({ error: "Invalid/Expired token" });
     }
+}
+
+// Middleware to require admin role
+function requireAdmin(req, res, next) {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Access denied. Admin role required." });
+    }
+    next();
+}
+
+// Middleware to require student or admin role
+function requireStudentOrAdmin(req, res, next) {
+    if (req.user.role !== 'student' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Access denied. Student or Admin role required." });
+    }
+    next();
 }

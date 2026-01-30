@@ -67,10 +67,10 @@ app.get('/allspaces', async (req, res) => {
 
 // Example Route: Create a new study space
 app.post('/addspace', async (req, res) => {
-    const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time } = req.body;
+    const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image } = req.body;
     try {
         let connection = await mysql.createConnection(dbConfig);
-        await connection.execute('INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [space_name, location, capacity, zone_type, is_available, booked_by, booking_time]);
+        await connection.execute('INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image]);
         res.status(201).json({ message: 'Study space '+space_name+' added successfully' });
     } catch (err) {
         console.error(err);
@@ -98,8 +98,9 @@ app.put('/editspace/:id', async (req, res) => {
                  is_available = COALESCE(?, is_available),
                  booked_by = COALESCE(?, booked_by),
                  booking_time = COALESCE(?, booking_time)
+                 space_image = COALESCE(?, space_image)
              WHERE space_id = ?`,
-            [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, id]
+            [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, space_image ?? null, id]
         );
 
         if (result.affectedRows === 0) {

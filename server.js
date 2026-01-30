@@ -25,6 +25,18 @@ const allowedOrigins = [
     "https://onlinecarswebservice.onrender.com/allcars",
 ];
 
+function toMySQLDateTime(value) {
+    if (!value) return null;
+
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+
+    const pad = (n) => String(n).padStart(2, "0");
+
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 app.use(
     cors({
         origin: function (origin, callback) {
@@ -81,9 +93,10 @@ app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
 });
 
 app.put('/editspace/:id', requireAuth, async (req, res) => {
-
     const { id } = req.params;
+
     const clean = (v) => (v === undefined ? null : v);
+
     const {
         space_name,
         location,
@@ -95,22 +108,15 @@ app.put('/editspace/:id', requireAuth, async (req, res) => {
         space_image
     } = req.body;
 
-    if (
-        space_name === undefined &&
-        location === undefined &&
-        capacity === undefined &&
-        zone_type === undefined &&
-        is_available === undefined &&
-        booked_by === undefined &&
-        booking_time === undefined &&
-        space_image === undefined
-    ) {
+    if (space_name === undefined && location === undefined && capacity === undefined && zone_type === undefined && is_available === undefined && booked_by === undefined && booking_time === undefined && space_image === undefined) {
         return res.status(400).json({ message: "Nothing to update" });
     }
 
     try {
-
         const connection = await mysql.createConnection(dbConfig);
+
+        const mysqlBookingTime = toMySQLDateTime(booking_time);
+
         const [result] = await connection.execute(
             `UPDATE defaultdb.study_spaces 
        SET space_name   = COALESCE(?, space_name),
@@ -129,18 +135,21 @@ app.put('/editspace/:id', requireAuth, async (req, res) => {
                 clean(zone_type),
                 clean(is_available),
                 clean(booked_by),
-                clean(booking_time),
+                clean(mysqlBookingTime),
                 clean(space_image),
                 id
             ]
         );
+
         await connection.end();
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: "Study space not found" });
         }
+
         res.json({ message: `Study space id ${id} updated successfully` });
     } catch (err) {
-        console.error(err);
+        console.error("EDITSPACE ERROR:", err);
         res.status(500).json({
             message: "Server error - could not update study space"
         });

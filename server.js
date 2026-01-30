@@ -2,7 +2,6 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 require('dotenv').config();
-const jwt = require('jsonwebtoken');
 const port = 3000;
 
 const dbConfig = {
@@ -16,7 +15,6 @@ const dbConfig = {
     queueLimit: 0,
 };
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 
 // intialize Express app
 const app = express();
@@ -48,103 +46,18 @@ app.use(
 // helps app to read JSON
 app.use(express.json());
 
+
 app.listen(port, () => {
     console.log('Server running on port', port);
 });
 
-// Login endpoint
-app.post("/login", async (req, res) => {
-    const { username, password } = req.body;
 
-    if (!username || !password) {
-        return res.status(400).json({ error: "Username and password required" });
-    }
 
-    try {
-        let connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute(
-            'SELECT userId, username, password, email, role FROM defaultdb.users WHERE username = ?',
-            [username]
-        );
-        await connection.end();
-
-        if (rows.length === 0) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
-
-        const user = rows[0];
-
-        // Plain text password comparison
-        if (password !== user.password) {
-            return res.status(401).json({ error: "Invalid credentials" });
-        }
-
-        const token = jwt.sign(
-            { 
-                userId: user.userId, 
-                username: user.username,
-                role: user.role 
-            },
-            JWT_SECRET,
-            { expiresIn: "1h" }
-        );
-
-        res.json({ 
-            token,
-            user: {
-                userId: user.userId,
-                username: user.username,
-                email: user.email,
-                role: user.role
-            }
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Server error during login" });
-    }
-});
-
-// Middleware to require authentication
-function requireAuth(req, res, next) {
-    const header = req.headers.authorization;
-    if (!header) return res.status(401).json({ error: "Missing Authorization header" });
-
-    const [type, token] = header.split(" ");
-    if (type !== "Bearer" || !token) {
-        return res.status(401).json({ error: "Invalid Authorization format" });
-    }
-
-    try {
-        const payload = jwt.verify(token, JWT_SECRET);
-        req.user = payload;
-        next();
-    } catch {
-        return res.status(401).json({ error: "Invalid/Expired token" });
-    }
-}
-
-// Middleware to require admin role
-function requireAdmin(req, res, next) {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Access denied. Admin role required." });
-    }
-    next();
-}
-
-// Middleware to require customer or admin role
-function requireCustomerOrAdmin(req, res, next) {
-    if (req.user.role !== 'customer' && req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Access denied. Customer or Admin role required." });
-    }
-    next();
-}
-
-// Get all study spaces (public or require auth based on your needs)
+// Example Route: Get all study spaces
 app.get('/allspaces', async (req, res) => {
     try {
         let connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute('SELECT * FROM defaultdb.study_spaces');
-        await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);
@@ -152,16 +65,12 @@ app.get('/allspaces', async (req, res) => {
     }
 });
 
-// Create a new study space - Admin only
-app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
+// Example Route: Create a new study space
+app.post('/addspace', async (req, res) => {
     const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time } = req.body;
     try {
         let connection = await mysql.createConnection(dbConfig);
-        await connection.execute(
-            'INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time) VALUES (?, ?, ?, ?, ?, ?, ?)', 
-            [space_name, location, capacity, zone_type, is_available ?? true, booked_by ?? null, booking_time ?? null]
-        );
-        await connection.end();
+        await connection.execute('INSERT INTO study_spaces (space_name, location, capacity, zone_type, is_available, booked_by, booking_time) VALUES (?, ?, ?, ?, ?, ?, ?)', [space_name, location, capacity, zone_type, is_available, booked_by, booking_time]);
         res.status(201).json({ message: 'Study space '+space_name+' added successfully' });
     } catch (err) {
         console.error(err);
@@ -169,12 +78,12 @@ app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Edit (update) a study space - Admin only
-app.put('/editspace/:id', requireAuth, requireAdmin, async (req, res) => {
+// Edit (update) a study space
+app.put('/editspace/:id', async (req, res) => {
     const { id } = req.params;
     const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time } = req.body;
 
-    if (space_name === undefined && location === undefined && capacity === undefined && zone_type === undefined && is_available === undefined && booked_by === undefined && booking_time === undefined) {
+    if (space_name === undefined && location === undefined, capacity === undefined && zone_type === undefined && is_available === undefined && booked_by === undefined && booking_time) {
         return res.status(400).json({ message: 'Nothing to update' });
     }
 
@@ -183,16 +92,15 @@ app.put('/editspace/:id', requireAuth, requireAdmin, async (req, res) => {
         const [result] = await connection.execute(
             `UPDATE defaultdb.study_spaces 
              SET space_name = COALESCE(?, space_name),
-                 location = COALESCE(?, location),
+                 location = COALESCE(?, location)
                  capacity = COALESCE(?, capacity),
                  zone_type = COALESCE(?, zone_type),
                  is_available = COALESCE(?, is_available),
-                 booked_by = ?,
-                 booking_time = ?
+                 booked_by = COALESCE(?, booked_by),
+                 booking_time = COALESCE(?, booking_time)
              WHERE space_id = ?`,
             [space_name ?? null, location ?? null, capacity ?? null, zone_type ?? null, is_available ?? null, booked_by ?? null, booking_time ?? null, id]
         );
-        await connection.end();
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Study space not found' });
@@ -205,13 +113,11 @@ app.put('/editspace/:id', requireAuth, requireAdmin, async (req, res) => {
     }
 });
 
-// Delete a study space - Admin only
-app.delete('/deletespace/:id', requireAuth, requireAdmin, async (req, res) => {
+app.delete('/deletespace/:id', async (req, res) => {
     const { id } = req.params;
     try {
         let connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute('DELETE FROM defaultdb.study_spaces WHERE space_id = ?', [id]);
-        await connection.end();
         res.json(rows);
     } catch (err) {
         console.error(err);

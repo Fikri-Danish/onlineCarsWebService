@@ -66,8 +66,8 @@ app.get('/allspaces', async (req, res) => {
     }
 });
 
-// Create a new study space
-app.post('/addspace', async (req, res) => {
+// Create a new study space - ADMIN ONLY
+app.post('/addspace', requireAuth, requireAdmin, async (req, res) => {
     const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image } = req.body;
     try {
         let connection = await mysql.createConnection(dbConfig);
@@ -83,8 +83,8 @@ app.post('/addspace', async (req, res) => {
     }
 });
 
-// Edit (update) a study space
-app.put('/editspace/:id', async (req, res) => {
+// Edit (update) a study space - ADMIN ONLY
+app.put('/editspace/:id', requireAuth, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { space_name, location, capacity, zone_type, is_available, booked_by, booking_time, space_image } = req.body;
 
@@ -120,7 +120,8 @@ app.put('/editspace/:id', async (req, res) => {
     }
 });
 
-app.delete('/deletespace/:id', async (req, res) => {
+// Delete a study space - ADMIN ONLY
+app.delete('/deletespace/:id', requireAuth, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
         let connection = await mysql.createConnection(dbConfig);
